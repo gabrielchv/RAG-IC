@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Assistente de EPI — RAG local</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14'>🦺</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🦺</span>
+      <div>
+        <h1 id="company-name">Assistente de EPI</h1>
+        <p class="subtitle" id="index-summary">carregando índice…</p>
+      </div>
+    </div>
+    <div class="badges" id="badges"></div>
+  </header>
+
+  <main>
+    <section class="conversation" id="conversation" aria-live="polite">
+      <div class="empty-state" id="empty-state">
+        <p>Pergunte sobre os documentos internos de EPI da empresa.</p>
+        <ul class="examples" id="examples">
+          <li><button type="button">Quais EPIs são obrigatórios para soldador na caldeiraria?</button></li>
+          <li><button type="button">De quanto em quanto tempo o protetor auricular é substituído?</button></li>
+          <li><button type="button">O que fazer se o EPI for danificado durante o turno?</button></li>
+          <li><button type="button">Qual o CA da luva de vaqueta usada na expedição?</button></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <form class="composer" id="composer" autocomplete="off">
+    <select id="strategy" title="Estratégia de recuperação" aria-label="Estratégia de recuperação">
+      <option value="">padrão</option>
+      <option value="hybrid">híbrido</option>
+      <option value="dense">denso</option>
+      <option value="bm25">BM25</option>
+    </select>
+    <input
+      id="question"
+      name="question"
+      type="text"
+      placeholder="Digite sua pergunta…"
+      maxlength="500"
+      required
+      minlength="3"
+    />
+    <button type="submit" id="send">Perguntar</button>
+  </form>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
