@@ -139,13 +139,30 @@ refazer a pesquisa, confira as datas.
   Depreciação: a página oficial não anuncia data de desligamento para
     gemini-2.5-flash, mas rastreadores de terceiros citam 16/10/2026. Risco real.
 
-  ARMADILHA JÁ ENCONTRADA E CORRIGIDA: o parâmetro de raciocínio do Gemini mudou.
-  Não existe mais thinking_budget (inteiro). Agora é thinking_level, categórico
-  ("minimal"/"low"/"medium"/"high"). E gemini-2.5-flash NÃO PERMITE DESLIGAR o
-  thinking, apenas reduzir. O código em src/rag_ic/llm/gemini.py já usa
-  thinking_level="low" e aplica o campo de forma tolerante: se o SDK instalado
-  não aceitar, loga um warning e manda a requisição com o padrão do modelo.
-  NÃO "conserte" isso de volta para thinking_budget=0.
+  ARMADILHA DO PARÂMETRO DE RACIOCÍNIO — CORRIGIDA EM 20/08/2026, DEPOIS DE MEDIR.
+  A versão anterior desta seção dizia que thinking_budget não existia mais e que
+  gemini-2.5-flash não permitia desligar o thinking. As duas afirmações estavam
+  erradas, e o erro só apareceu quando a chave real foi configurada: até então o
+  código falhava antes, por falta de chave.
+
+  Medido com google-genai 1.75.0 contra gemini-2.5-flash:
+    thinking_budget=0      OK — desliga de fato (thoughts_token_count = None)
+    thinking_budget=128    OK — 18 tokens de thinking
+    thinking_level="low"   400 INVALID_ARGUMENT
+                           "Thinking level is not supported for this model."
+    sem thinking_config    OK — 18 tokens de thinking (padrão do modelo)
+
+  Ou seja: thinking_level é o campo do Gemini 3; o Gemini 2.5 usa thinking_budget
+  e recusa o outro na hora da requisição — 400 do servidor, não erro de tipo, o
+  que significa que nenhum try/except em volta da construção do objeto pega isso.
+
+  O código agora expõe UM nível semântico (RAG_GEMINI_THINKING_LEVEL, com os
+  valores minimal/low/medium/high) e mapeia para o campo que o modelo configurado
+  aceita: thinking_level em gemini-3*, thinking_budget em gemini-2.5* (minimal=0,
+  low=512, medium=4096, high=12288). Como rede de segurança, um 400 que mencione
+  thinking desativa o campo pelo resto do processo e refaz a requisição uma vez
+  com o padrão do modelo. Há testes fixando o mapeamento em
+  tests/test_gemini_thinking.py, sem tocar na rede.
 
 --------------------------------------------------------------------------------
 4. AMBIENTE
@@ -413,7 +430,9 @@ Em ordem de valor para a IC:
   * O marcador de recusa é CONTEXTO_INSUFICIENTE, definido UMA vez em
     models.py e importado pelo prompt, pelo parser e pelos testes. Se mudar o
     texto, mude só lá.
-  * thinking_level, não thinking_budget (ver seção 3).
+  * O campo de raciocínio depende da FAMÍLIA do modelo: thinking_level no Gemini 3,
+    thinking_budget no Gemini 2.5. Mandar o errado é 400 na requisição, não erro
+    de tipo. Ver seção 3 e tests/test_gemini_thinking.py.
   * gold set rotulado por (doc_id, seção) com casamento por PREFIXO. Seção vazia
     significa "qualquer lugar do documento" e é o que PDFs e CSVs usam.
   * PDFs são gerados, não versionados (.gitignore). Rode make_pdfs.py antes de

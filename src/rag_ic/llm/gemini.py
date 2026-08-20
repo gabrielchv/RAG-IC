@@ -2,16 +2,23 @@
 
 Cost notes for a proof of concept:
 
-* ``thinking_level="low"`` keeps Gemini's internal reasoning tokens to a minimum.
-  Those tokens are billed as output tokens and, for extractive question answering
-  over five short chunks, they buy essentially nothing. Note that gemini-2.5-flash
-  *cannot* disable thinking entirely — only reduce it.
+* Reasoning effort is kept low. Thinking tokens are billed as output tokens and, for
+  extractive question answering over five short chunks, they buy essentially nothing.
 * ``temperature=0.1`` — this is not a creative-writing task; near-greedy decoding
   makes the evaluation reproducible.
 
-The thinking field has changed shape across SDK versions (an integer ``thinking_budget``
-before, a categorical ``thinking_level`` now), so it is applied defensively: if the
-installed SDK rejects it, the request still goes out with the model's default.
+The thinking knob is *not* the same field across model families, and getting it wrong is
+a request-time 400 rather than a type error:
+
+* Gemini 3 takes the categorical ``thinking_level`` ("minimal"/"low"/"medium"/"high").
+* Gemini 2.5 takes the integer ``thinking_budget``, and rejects ``thinking_level``
+  outright — ``400 INVALID_ARGUMENT ... Thinking level is not supported for this
+  model.`` On 2.5 Flash a budget of 0 does disable thinking entirely.
+
+So settings expose one semantic level and this module maps it to whichever field the
+configured model actually accepts. As a backstop for model families that are neither,
+a 400 that mentions thinking disables the field for the rest of the process and the
+request is retried once with the model's default reasoning effort.
 
 Model deprecation: ``gemini-2.5-flash`` is configuration, not code. If Google retires
 it, change ``RAG_GEMINI_MODEL`` in ``.env``.
@@ -27,8 +34,9 @@ from rag_ic.llm.base import LLMProvider
 
 logger = logging.getLogger(__name__)
 
-#: Model families that accept a thinking config at all. Older ones reject the field.
-_THINKING_CAPABLE_PREFIXES = ("gemini-2.5", "gemini-3")
+#: Gemini 2.5 spends thinking by token budget. The mapping is deliberately frugal:
+#: this is extractive QA over five short chunks, not a reasoning benchmark.
+_THINKING_BUDGETS = {"minimal": 0, "low": 512, "medium": 4096, "high": 12288}
 
 
 class GeminiProvider(LLMProvider):
@@ -52,6 +60,8 @@ class GeminiProvider(LLMProvider):
         self._temperature = temperature
         self._max_output_tokens = max_output_tokens
         self._thinking_level = thinking_level
+        #: Set when the API rejects the thinking field, so it is tried only once.
+        self._thinking_rejected = False
 
     @classmethod
     def from_settings(cls, settings: Settings) -> GeminiProvider:
@@ -86,31 +96,51 @@ class GeminiProvider(LLMProvider):
         return types.GenerateContentConfig(**kwargs)
 
     def _thinking_config(self, types):
-        """Best-effort thinking config, tolerant of SDK version drift.
+        """Map the configured reasoning level onto the field this model accepts.
 
-        Returns ``None`` when the model does not support thinking, when the feature is
-        switched off in settings, or when the installed SDK does not know the field —
-        in which case the request simply uses the model's default reasoning effort.
+        Returns ``None`` — meaning "use the model default" — when thinking is switched
+        off in settings, when the model family takes neither field, or once the API has
+        rejected the field for this process.
         """
-        if self._thinking_level is None or not self._model.startswith(_THINKING_CAPABLE_PREFIXES):
+        if self._thinking_level is None or self._thinking_rejected:
             return None
-        try:
+        if self._model.startswith("gemini-3"):
             return types.ThinkingConfig(thinking_level=self._thinking_level)
-        except Exception as exc:
-            logger.warning(
-                "installed google-genai does not accept thinking_level=%r (%s); "
-                "using the model default reasoning effort",
-                self._thinking_level,
-                exc,
-            )
-            return None
+        if self._model.startswith("gemini-2.5"):
+            budget = _THINKING_BUDGETS.get(self._thinking_level)
+            return None if budget is None else types.ThinkingConfig(thinking_budget=budget)
+        return None
+
+    def _note_thinking_rejected(self, exc: Exception) -> bool:
+        """Was this failure the thinking field? If so, stop sending it and say so."""
+        if self._thinking_rejected or self._thinking_level is None:
+            return False
+        if "thinking" not in str(exc).lower():
+            return False
+        self._thinking_rejected = True
+        logger.warning(
+            "%s rejected the thinking field (%s); retrying with the model default reasoning effort",
+            self._model,
+            exc,
+        )
+        return True
 
     async def generate_stream(self, system_instruction: str, prompt: str) -> AsyncIterator[str]:
-        stream = await self._client.aio.models.generate_content_stream(
-            model=self._model,
-            contents=prompt,
-            config=self._config(system_instruction),
-        )
+        try:
+            stream = await self._client.aio.models.generate_content_stream(
+                model=self._model,
+                contents=prompt,
+                config=self._config(system_instruction),
+            )
+        except Exception as exc:
+            if not self._note_thinking_rejected(exc):
+                raise
+            # _config now omits the thinking field; nothing has been yielded yet.
+            stream = await self._client.aio.models.generate_content_stream(
+                model=self._model,
+                contents=prompt,
+                config=self._config(system_instruction),
+            )
         async for event in stream:
             text = getattr(event, "text", None)
             if text:
