@@ -1,0 +1,26 @@
+ficha,data_entrega,matricula,funcionario,setor,item,ca,lote,motivo,proxima_troca,assinatura
+FE-2026-0412,2026-01-08,4471,Adriano Peixoto,Caldeiraria,Luva de raspa cano 20 cm,31028,PN-2512-A,Troca programada,2026-03-08,Assinada
+FE-2026-0413,2026-01-08,4471,Adriano Peixoto,Caldeiraria,Protetor auricular plug de silicone tripla flange,39917,PN-2447-B,Troca programada,2026-07-08,Assinada
+FE-2026-0455,2026-01-15,5120,Bianca Turolla,Usinagem,Protetor auricular tipo concha,28652,PN-2501-C,Admissão,2027-01-15,Assinada
+FE-2026-0456,2026-01-15,5120,Bianca Turolla,Usinagem,Óculos de segurança incolor antiembaçante,34082,PN-2533-A,Admissão,2027-01-15,Assinada
+FE-2026-0457,2026-01-15,5120,Bianca Turolla,Usinagem,Calçado de segurança com biqueira de composite,42315,PN-2488-D,Admissão,2027-01-15,Assinada
+FE-2026-0601,2026-02-03,3390,Cleiton Rabelo,Pintura,Respirador semifacial,41220,SM-1180-A,Admissão,2029-02-03,Assinada
+FE-2026-0602,2026-02-03,3390,Cleiton Rabelo,Pintura,Par de filtros combinados VO/GA,41221,SM-1181-C,Admissão,Por horas de uso,Assinada
+FE-2026-0603,2026-02-03,3390,Cleiton Rabelo,Pintura,Luva nitrílica verde,36741,PN-2570-B,Admissão,2026-03-05,Assinada
+FE-2026-0744,2026-02-19,2815,Denise Kowalski,Expedição,Luva de vaqueta,27033,PN-2559-A,Troca programada,2026-05-19,Pendente
+FE-2026-0745,2026-02-19,2815,Denise Kowalski,Expedição,Óculos de segurança incolor antiembaçante,34082,PN-2533-A,Substituição por dano,2027-02-19,Pendente
+FE-2026-0810,2026-03-02,6033,Everton Sagara,Manutenção,Cinturão de segurança tipo paraquedista,37649,AS-0442-A,Admissão,2031-03-02,Assinada
+FE-2026-0811,2026-03-02,6033,Everton Sagara,Manutenção,Talabarte em Y com absorvedor de energia,37650,AS-0443-A,Admissão,2031-03-02,Assinada
+FE-2026-0812,2026-03-02,6033,Everton Sagara,Manutenção,Luva isolante de borracha classe 0,43118,PN-2601-A,Admissão,Ensaio em 2026-09-02,Assinada
+FE-2026-0977,2026-03-24,4471,Adriano Peixoto,Caldeiraria,Luva de raspa cano 20 cm,31028,PN-2512-A,Troca programada,2026-05-24,Assinada
+FE-2026-1042,2026-04-06,1198,Fabíola Mesquita,Qualidade,Protetor auricular plug de silicone tripla flange,39917,PN-2447-B,Troca programada,2026-10-06,Assinada
+FE-2026-1130,2026-04-21,2815,Denise Kowalski,Expedição,Capacete classe B com aba frontal,31469,PN-2390-E,Substituição por impacto,2031-04-21,Assinada
+FE-2026-1215,2026-05-05,3390,Cleiton Rabelo,Pintura,Luva nitrílica verde,36741,PN-2570-B,Troca programada,2026-06-04,Assinada
+FE-2026-1216,2026-05-05,3390,Cleiton Rabelo,Pintura,Macacão de proteção química tipo 5/6,40772,SM-1204-B,Troca programada,Descarte por uso,Assinada
+FE-2026-1388,2026-05-26,4471,Adriano Peixoto,Caldeiraria,Avental de raspa,29980,PN-2455-C,Substituição por dano,2027-05-26,Assinada
+FE-2026-1390,2026-05-26,4471,Adriano Peixoto,Caldeiraria,Máscara de solda automática,35108,PN-2412-A,Troca programada,2028-05-26,Assinada
+FE-2026-1502,2026-06-09,5120,Bianca Turolla,Usinagem,Luva nitrílica verde,36741,PN-2570-B,Troca programada,2026-07-09,Assinada
+FE-2026-1577,2026-06-18,7702,Gilmar Antunes,Almoxarifado,Luva de vaqueta,27033,PN-2559-A,Admissão,2026-09-18,Assinada
+FE-2026-1578,2026-06-18,7702,Gilmar Antunes,Almoxarifado,Capacete classe B com aba frontal,31469,PN-2390-E,Admissão,2031-06-18,Assinada
+FE-2026-1640,2026-06-25,6033,Everton Sagara,Manutenção,Balaclava e camisa antichama 8 cal/cm²,44210,PN-2618-A,Admissão,2028-06-25,Assinada
+FE-2026-1641,2026-06-29,2815,Denise Kowalski,Expedição,Luva de vaqueta,27033,PN-2559-A,Substituição por dano,2026-09-29,Assinada

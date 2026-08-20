@@ -1,0 +1,31 @@
+funcao,setor,risco_principal,epi_obrigatorio,ca,vida_util,norma_referencia
+Soldador,Caldeiraria,Radiação não ionizante e projeção de partículas incandescentes,Máscara de solda automática com filtro tonalidade 11,35108,24 meses,NR-6 Anexo I C
+Soldador,Caldeiraria,Queimadura por respingo de solda,Luva de raspa cano 20 cm,31028,2 meses,NR-6 Anexo I D
+Soldador,Caldeiraria,Queimadura por respingo de solda,Avental de raspa,29980,12 meses,NR-6 Anexo I E
+Soldador,Caldeiraria,Queimadura em membros inferiores,Perneira de raspa,26114,12 meses,NR-6 Anexo I F
+Soldador,Caldeiraria,Fumos metálicos,Respirador PFF2 sem válvula,38503,Descarte diário,NR-6 Anexo I G
+Caldeireiro,Caldeiraria,Ruído contínuo de 92 dB(A),Protetor auricular plug de silicone tripla flange,39917,6 meses,NR-15 Anexo 1
+Caldeireiro,Caldeiraria,Impacto de objetos na cabeça,Capacete classe B com aba frontal,31469,60 meses,NR-6 Anexo I A
+Caldeireiro,Caldeiraria,Projeção de partículas,Óculos de segurança incolor antiembaçante,34082,12 meses,NR-6 Anexo I B
+Caldeireiro,Caldeiraria,Perfuração e esmagamento do pé,Calçado de segurança com biqueira de composite,42315,12 meses,NR-6 Anexo I H
+Operador de usinagem,Usinagem,Projeção de cavaco,Óculos de segurança incolor antiembaçante,34082,12 meses,NR-6 Anexo I B
+Operador de usinagem,Usinagem,Ruído contínuo de 85 dB(A),Protetor auricular tipo concha,28652,12 meses,NR-15 Anexo 1
+Operador de usinagem,Usinagem,Contato com óleo de corte,Luva nitrílica verde,36741,30 dias,NR-6 Anexo I D
+Operador de usinagem,Usinagem,Perfuração e esmagamento do pé,Calçado de segurança com biqueira de composite,42315,12 meses,NR-6 Anexo I H
+Pintor industrial,Pintura,Vapores orgânicos de solvente,Respirador semifacial com filtro VO/GA,41220,36 meses,NR-6 Anexo I G
+Pintor industrial,Pintura,Névoa de tinta no rosto,Protetor facial de policarbonato 8 polegadas,30874,24 meses,NR-6 Anexo I B
+Pintor industrial,Pintura,Contato dérmico com solvente,Luva nitrílica verde,36741,30 dias,NR-6 Anexo I D
+Pintor industrial,Pintura,Contaminação da pele e da roupa,Macacão de proteção química tipo 5/6,40772,Descarte por uso,NR-6 Anexo I E
+Auxiliar de expedição,Expedição,Corte por rebarba e cantos vivos,Luva de vaqueta,27033,3 meses,NR-6 Anexo I D
+Auxiliar de expedição,Expedição,Queda de carga sobre o pé,Calçado de segurança com biqueira de composite,42315,12 meses,NR-6 Anexo I H
+Auxiliar de expedição,Expedição,Impacto de objetos na cabeça,Capacete classe B com aba frontal,31469,60 meses,NR-6 Anexo I A
+Mecânico de manutenção,Manutenção,Trabalho em altura acima de 2 metros,Cinturão de segurança tipo paraquedista,37649,60 meses,NR-35
+Mecânico de manutenção,Manutenção,Queda de altura,Talabarte em Y com absorvedor de energia,37650,60 meses,NR-35
+Mecânico de manutenção,Manutenção,Choque elétrico em manutenção de painel,Luva isolante de borracha classe 0,43118,Ensaio semestral,NR-10
+Mecânico de manutenção,Manutenção,Arco elétrico,Balaclava e camisa antichama 8 cal/cm²,44210,24 meses,NR-10
+Almoxarife,Almoxarifado,Queda de material das prateleiras,Capacete classe B com aba frontal,31469,60 meses,NR-6 Anexo I A
+Almoxarife,Almoxarifado,Corte no manuseio de embalagens,Luva de vaqueta,27033,3 meses,NR-6 Anexo I D
+Inspetor da qualidade,Qualidade,Projeção de partículas na inspeção em campo,Óculos de segurança incolor antiembaçante,34082,12 meses,NR-6 Anexo I B
+Inspetor da qualidade,Qualidade,Ruído ao circular pela caldeiraria,Protetor auricular plug de silicone tripla flange,39917,6 meses,NR-15 Anexo 1
+Brigadista,Brigada de emergência,Exposição a calor e chama em emergência,Luva de bombeiro em couro,45001,60 meses,NR-23
+Visitante,Portaria,Circulação em área operacional,Óculos de segurança de sobrepor,33500,Uso pontual,NR-6 Anexo I B
