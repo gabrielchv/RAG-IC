@@ -1,0 +1,451 @@
+================================================================================
+RAG-IC — PLANO COMPLETO DE CONTINUIDADE
+================================================================================
+
+Este arquivo existe para que uma nova sessão do Claude (ou outro agente) possa
+retomar o projeto do zero, sem o histórico da conversa original.
+
+Se você é um agente lendo isto: leia o arquivo INTEIRO antes de agir. As decisões
+das seções 2 e 3 já foram tomadas pelo usuário depois de uma sessão longa de
+questionamento — NÃO as reabra nem "melhore" sem pedir. A seção 6 diz exatamente
+o que falta fazer.
+
+Última atualização: 14/08/2026
+Diretório do projeto: /home/gazerah/Documents/RAG-IC
+Não é um repositório git (ainda).
+
+--------------------------------------------------------------------------------
+1. CONTEXTO DO PROJETO
+--------------------------------------------------------------------------------
+
+O que é: Prova de conceito (PoC) de Iniciação Científica (IC).
+
+Tema da pesquisa: RAG local + LLM para perguntas internas de empresa, com
+privacidade como motivação. A tese é que o acervo de uma empresa pode ser
+indexado e pesquisado inteiramente na máquina dela, sem enviar os documentos
+para a nuvem.
+
+Domínio escolhido: EPI — Equipamento de Proteção Individual (segurança do
+trabalho brasileira, regida pela NR-6, com participação de NR-10, NR-33, NR-35).
+
+ATENÇÃO A UM ERRO DE TERMO: o usuário escreveu inicialmente "EPC - Equipamento
+Proteção Individual". EPC é Equipamento de Proteção COLETIVA. O projeto é sobre
+EPI (Individual). Isso já foi confirmado com o usuário. Não confunda de novo.
+
+Usuário: escreve em inglês na conversa, mas o artefato final é em português do
+Brasil (banca brasileira). Convenção adotada: código e docstrings em inglês; UI,
+prompts, corpus, README, docs em pt-BR.
+
+Modo de resposta: o usuário usa "caveman mode" (respostas telegráficas). Isso NÃO
+se aplica a código, commits ou avisos de segurança — esses são escritos normal.
+
+--------------------------------------------------------------------------------
+2. DECISÕES DE ARQUITETURA (JÁ FECHADAS COM O USUÁRIO — NÃO REABRIR)
+--------------------------------------------------------------------------------
+
+Cada linha abaixo foi uma pergunta feita ao usuário, com alternativas, e ele
+escolheu. O motivo está registrado porque a justificativa vai para o artigo.
+
+CORPUS
+  Tamanho: pequeno e fixo (<100 documentos).
+  Composição: documentos sintéticos de uma empresa fictícia, ancorados em NR real.
+    Motivo: um chatbot "interno" precisa de documentos internos. NR pública sozinha
+    provaria apenas Q&A regulatório, o que enfraquece a motivação de privacidade.
+    Contrapartida: ameaça à validade externa — declarada no README como limitação.
+  Formatos: MISTO — markdown + alguns PDFs + CSV.
+    Motivo: heterogeneidade realista, exige loaders por formato.
+
+PIPELINE
+  Chunking: estrutural (headings/parágrafo/linha) com fallback recursivo por
+    sentença quando a peça passa de ~400 tokens, overlap de 15%, prefixo com
+    título do documento + caminho de seção para o chunk ser autocontido.
+  Embeddings: LOCAIS, modelo intfloat/multilingual-e5-small (384 dimensões).
+    Motivo: o acervo não pode sair da máquina na indexação, senão a tese cai.
+    Restrições que esse modelo impõe: limite de 512 tokens (trunca em SILÊNCIO) e
+    prefixos assimétricos obrigatórios "query: " e "passage: ".
+  Índice vetorial: matriz NumPy float32 em .npz, cosseno exato.
+    Motivo: alguns milhares de vetores; busca exata é um matmul submilissegundo.
+    ANN (FAISS/HNSW) só compensa por volta de 10^5–10^6 vetores.
+  Recuperação: HÍBRIDA — denso + BM25, fundidos por Reciprocal Rank Fusion (k=60).
+    Motivo: as perguntas do domínio carregam identificadores (CA 31.028, NR-35,
+    item 6.6.1, lote PN-2533-A) que embeddings borram e BM25 acerta.
+    Bônus: dá a ablação denso × BM25 × híbrido, que é o resultado central da IC.
+  Candidatos: 30 por canal; top-5 final.
+
+GERAÇÃO
+  Modelo: Gemini 2.5 Flash, via SDK google-genai, com chave da AI Studio (.env).
+    NÃO usar Vertex AI. Motivo: o probe do projeto GCP do usuário deu 403 e a
+    Vertex contradiz o enquadramento "roda tudo local".
+  Contrato de resposta: aterramento estrito. Responde SÓ pelos trechos, cita cada
+    afirmação como [n], e quando o contexto não basta emite o marcador literal
+    CONTEXTO_INSUFICIENTE na primeira linha.
+    Motivo: domínio de segurança do trabalho. Resposta plausível e errada sobre
+    classe de respirador é risco físico real. E o marcador é detectável por
+    programa, o que permite MEDIR recusa.
+  Provider trocável: interface LLMProvider com GeminiProvider agora e
+    OllamaProvider para depois. Esse seam É o ponto da tese.
+
+SERVIÇO
+  FastAPI + Pydantic + Server-Sent Events (streaming).
+  Frontend: HTML/CSS/JS puro, sem framework, sem build step.
+    Inclui inspector de chunks mostrando scores denso/BM25/fundido por trecho.
+    Motivo: é o que separa "demo de chatbot" de "instrumento de pesquisa" — quando
+    a resposta sai errada dá para ver se a falha foi recuperação ou geração.
+  Turno único: sem histórico de conversa, sem reescrita de pergunta.
+    Motivo: perguntas de acompanhamento ("e para soldadores?") destroem a
+    recuperação, e manter turno único faz as métricas do gold set descreverem
+    exatamente o que o sistema faz em produção.
+
+TENANCY
+  Layout data/<empresa>/ e index/<empresa>/ desde o começo, mas só uma empresa
+  no PoC. Motivo: a alegação de isolamento vira estrutura, não retórica.
+
+AVALIAÇÃO
+  Gold set escrito à mão: 50 perguntas respondíveis + 10 sem resposta no acervo.
+  Rotuladas por (doc_id, seção) e NÃO por chunk_id.
+    Motivo crítico: chunk_id muda a cada experimento de chunking. Gold set que
+    precisa ser rerrotulado a cada experimento é gold set que ninguém mantém.
+  Métricas: Recall@k (estrito, por região rotulada), Hit@k (leniente), MRR,
+  acurácia de recusa, validade de citação.
+
+PADRÕES DE ENGENHARIA
+  Type hints completos, ruff (lint+format), pydantic-settings via .env, logging
+  estruturado, pytest sobre a lógica determinística (chunking, tokenizador,
+  fusão, métricas, prompts, loaders, formato do índice). Chamadas ao LLM não são
+  testadas: não determinísticas e custam dinheiro.
+
+O QUE ESTÁ FORA DE ESCOPO (decidido, não esquecido)
+  Autenticação. Histórico de conversa. Reranker cross-encoder. Deploy em nuvem.
+  Upload de documento pelo navegador. Base CAEPI do MTE (é tabela flat de centenas
+  de milhares de linhas — péssimo corpus RAG, bom para SQL).
+
+--------------------------------------------------------------------------------
+3. FATOS PESQUISADOS QUE JUSTIFICAM AS DECISÕES (agosto/2026)
+--------------------------------------------------------------------------------
+
+Estes números foram levantados na web durante a sessão e mudaram decisões. Se for
+refazer a pesquisa, confira as datas.
+
+  Vertex AI RAG Engine + RagManagedDb "basic": ~US$ 65/mês MESMO OCIOSO. É uma
+    instância Spanner de 100 processing units provisionada. Foi o que matou a
+    ideia de usar RAG Engine em um PoC "de custo muito baixo".
+  Vertex AI Vector Search: cobrado por node-hour, ~US$ 700+/mês com 3 réplicas.
+  Gemini API File Search: storage grátis, embeddings de query grátis, indexação a
+    US$ 0,15/1M tokens. Ótimo, mas foi descartado quando o usuário decidiu
+    construir o próprio RAG (a tese exige controle do pipeline).
+  Cloud Run free tier: 2M requisições, 180k vCPU-s, 360k GiB-s por mês.
+  Gemini 2.5 Flash: US$ 0,30 entrada / US$ 2,50 saída por 1M tokens.
+  Gemini 3 Flash: US$ 0,50/US$ 3,00. Gemini 3 Flash-Lite: US$ 0,25/US$ 1,50.
+  Depreciação: a página oficial não anuncia data de desligamento para
+    gemini-2.5-flash, mas rastreadores de terceiros citam 16/10/2026. Risco real.
+
+  ARMADILHA JÁ ENCONTRADA E CORRIGIDA: o parâmetro de raciocínio do Gemini mudou.
+  Não existe mais thinking_budget (inteiro). Agora é thinking_level, categórico
+  ("minimal"/"low"/"medium"/"high"). E gemini-2.5-flash NÃO PERMITE DESLIGAR o
+  thinking, apenas reduzir. O código em src/rag_ic/llm/gemini.py já usa
+  thinking_level="low" e aplica o campo de forma tolerante: se o SDK instalado
+  não aceitar, loga um warning e manda a requisição com o padrão do modelo.
+  NÃO "conserte" isso de volta para thinking_budget=0.
+
+--------------------------------------------------------------------------------
+4. AMBIENTE
+--------------------------------------------------------------------------------
+
+  SO: Linux (Pop!_OS, kernel 7.0.11-76070011-generic)
+  Shell: zsh
+  Python do sistema: 3.12.3 em /usr/bin/python3
+  GPU: NVIDIA GTX 1650, 4 GB de VRAM  <-- limite importante
+  RAM: 15 GB
+  Ollama: NÃO instalado
+  gcloud: instalado, logado como gabriel.chaves.3720@gmail.com
+  Chave Gemini: NÃO estava no ambiente. Precisa ser criada em
+    https://aistudio.google.com/apikey e colocada em .env
+
+  Consequência do limite de 4 GB de VRAM: modelo 7B quantizado Q4_K_M (~4,4 GB)
+  transborda para a RAM e fica lento. O realista para o provider local é 3B–4B
+  (qwen3:4b ou llama3.2:3b).
+
+--------------------------------------------------------------------------------
+5. ESTADO ATUAL — O QUE JÁ EXISTE
+--------------------------------------------------------------------------------
+
+83 arquivos escritos. Todos passam em `python3 -m compileall` (sintaxe válida).
+NENHUM teste foi executado ainda, porque as dependências ainda estavam instalando
+quando este plano foi escrito. Veja a seção 6.
+
+CÓDIGO — src/rag_ic/
+  __init__.py             versão do pacote
+  config.py               Settings (pydantic-settings), prefixo de env RAG_,
+                          propriedades company_docs_dir / company_gold_dir /
+                          company_index_dir
+  models.py               Block, Document, Chunk, ScoredChunk, GoldReference,
+                          GoldQuestion, AnswerResult, constante
+                          INSUFFICIENT_CONTEXT_MARKER
+  logging_setup.py        configure_logging(), idempotente
+  prompts.py              prompt de sistema pt-BR, format_sources, is_refusal,
+                          strip_refusal_marker
+  pipeline.py             RagPipeline (retrieve / answer / answer_stream),
+                          StreamEvent, build_embedder, build_llm, build_pipeline
+  ingest/loaders.py       load_markdown (headings viram section_path, H1 é o
+                          título e não entra no path), load_pdf (pypdf, rastreia
+                          página, rejunta quebras de linha), load_csv (uma linha
+                          por bloco, renderizada como "coluna: valor")
+  ingest/chunking.py      ChunkingConfig, chunk_document, chunk_corpus,
+                          split_long_text, _hard_split
+  ingest/tokens.py        approximate_token_count (3,5 chars/token para pt-BR) e
+                          transformer_token_counter (tokenizer real, com fallback)
+  ingest/build_index.py   CLI de indexação
+  embeddings/base.py      EmbeddingProvider (embed_documents e embed_query são
+                          métodos SEPARADOS de propósito — assimetria do e5)
+  embeddings/local_e5.py  as_query / as_passage / resolve_device / E5EmbeddingProvider
+  retrieval/store.py      IndexManifest, LoadedIndex, save_index, load_index.
+                          Contrato: linha i do chunks.jsonl == linha i da matriz
+  retrieval/dense.py      DenseIndex, cosseno via argpartition
+  retrieval/lexical.py    fold_diacritics, tokenize (preserva NR-35 / 6.6.1 /
+                          31.028 E emite as partes), STOPWORDS_PT, BM25Index
+  retrieval/fusion.py     reciprocal_rank_fusion, ranks_by_index
+  retrieval/retriever.py  HybridRetriever.search(query, top_k, strategy)
+  llm/base.py             LLMProvider (generate_stream + generate + is_local)
+  llm/gemini.py           GeminiProvider, streaming via client.aio
+  llm/ollama.py           OllamaProvider — ESCRITO MAS NUNCA EXECUTADO
+  api/main.py             FastAPI, lifespan carrega índice uma vez, rotas
+                          /api/health /api/config /api/ask /api/retrieve
+                          /api/ask/stream, monta /static e serve /
+  evaluation/metrics.py   matches_reference, recall_at_k, hit_at_k,
+                          reciprocal_rank, evaluate_retrieval, RetrievalReport,
+                          RefusalReport
+  evaluation/run_eval.py  ablação das 3 estratégias, tabela no terminal, CSV,
+                          e --with-llm para recusa e citações
+
+FRONTEND — web/
+  index.html, style.css (tema claro/escuro), app.js (EventSource, citações
+  clicáveis, inspector de trechos)
+
+CORPUS — data/aurora/  (empresa fictícia "Metalúrgica Aurora Ltda.", Sorocaba/SP,
+214 funcionários, grau de risco 3)
+  docs/ — 22 markdown + 2 CSV:
+    politica-epi (a norma interna NA-007), procedimento-entrega-epi,
+    procedimento-substituicao-danificado, procedimento-higienizacao-guarda,
+    treinamento-integracao-sst, treinamento-nr35-trabalho-altura,
+    treinamento-nr33-espaco-confinado, pgr-resumo-riscos,
+    ppr-protecao-respiratoria, protecao-auditiva, protecao-maos,
+    protecao-ocular-facial, protecao-cabeca-pes, vestimenta-soldagem,
+    epi-visitantes-terceiros, descarte-residuos-epi, fornecedores-homologados,
+    fluxo-solicitacao-compra-epi, cipa-atribuicoes-epi, dds-registros-2026,
+    auditoria-interna-epi-2026, indicadores-sst, plano-emergencia-epi,
+    nr10-protecao-eletrica, calendario-treinamentos-2026, faq-epi,
+    matriz-epi-por-funcao.csv, registro-entregas-epi.csv
+  pdf_sources/ — 4 markdown que viram PDF via scripts/make_pdfs.py:
+    comunicado-2026-07-recolhimento-lote, anexo-fichas-tecnicas,
+    checklist-inspecao-epi, ata-cipa-2026-06
+  gold/questions.jsonl — Q01..Q60 respondíveis, U01..U10 sem resposta
+
+TESTES — tests/ (7 arquivos, ~60 casos)
+  test_chunking, test_lexical, test_fusion, test_metrics, test_prompts,
+  test_loaders, test_embeddings_prefix
+
+DOCUMENTAÇÃO
+  README.md               instalação, uso, arquitetura, decisões, limitações
+  docs/guia-de-estudos.md guia de ~14.060 palavras (~45 min), pt-BR, com exemplos
+                          numéricos resolvidos à mão (BM25, RRF, cosseno,
+                          Recall@k, MRR) e checklist por seção
+  docs/leituras.md        bibliografia verificada, 28 URLs conferidos (HTTP 200)
+  .env.example            todas as variáveis com comentário
+  .gitignore              ignora .env, .venv, index/, PDFs gerados, reports/
+  pyproject.toml          deps com faixas, ruff, pytest, scripts rag-index/rag-eval
+  scripts/make_pdfs.py    renderiza os PDFs do acervo com reportlab
+
+CONSISTÊNCIA DO CORPUS (a "bíblia" — mantenha se for escrever mais documentos)
+  Norma interna: NA-007. Sistema interno: SIGEPI.
+  Almoxarifado: prédio B, 07h00–16h30. Contingência: armário da portaria do
+    portão 2. Reposição de EPI danificado: até 2 horas (imediata para EPI crítico).
+  Ruído: Caldeiraria 92 dB(A), Usinagem 85, Pintura 78, Expedição 74.
+    (Manutenção NÃO tem ruído medido — isso é o distrator da pergunta U03.)
+  Aderência ao EPI: 94% consolidado, 88% na Expedição.
+  CAs usados: capacete 31.469 / óculos 34.082 / óculos sobrepor 33.500 /
+    plug 39.917 (NRRsf 16 dB) / concha 28.652 (NRRsf 21 dB) / luva vaqueta 27.033 /
+    luva raspa 31.028 / luva nitrílica 36.741 / calçado 42.315 / avental raspa
+    29.980 / máscara solda 35.108 / PFF2 38.503 / respirador 41.220 + filtro
+    41.221 / facial 30.874 / cinturão 37.649 + talabarte 37.650 / perneira 26.114 /
+    luva isolante 43.118 / antichama 44.210 / macacão 40.772 / luva bombeiro 45.001
+  Trocas: plug 6 meses, concha 12 meses (almofadas 6), óculos 12 meses,
+    vaqueta 3 meses, raspa 2 meses, nitrílica 30 dias, capacete 5 anos (carneiro
+    12 meses), calçado 12 meses, PFF2 diário, filtro VO/GA 40 horas de uso.
+  Fornecedores: Proteg Norte (AUR-2024/17), Segurmax (AUR-2025/04, respiratória +
+    logística reversa), Altura Segura (AUR-2025/11, quedas).
+  Auditoria 2026: NC-01 fichas sem assinatura na Expedição, NC-02 14 filtros com
+    embalagem aberta, NC-03 reciclagem NR-35 vencida de 4 mecânicos.
+  Lote com recall: PN-2533-A (óculos), comunicado CI-2026/07.
+
+--------------------------------------------------------------------------------
+6. O QUE FALTA FAZER — RETOME AQUI
+--------------------------------------------------------------------------------
+
+PASSO 0 — verificar se as dependências terminaram de instalar
+  A instalação estava em andamento (torch é grande) quando esta sessão parou.
+
+    ls .venv/lib/python3.12/site-packages | wc -l
+    # se der 2 ou algo muito baixo, a instalação não terminou. Rode de novo:
+    python3 -m venv .venv
+    .venv/bin/pip install -e ".[dev]"
+
+  A partir daqui, use sempre .venv/bin/python e .venv/bin/pytest (ou ative com
+  `source .venv/bin/activate`).
+
+PASSO 1 — lint e formatação
+    .venv/bin/ruff check . --fix
+    .venv/bin/ruff format .
+    .venv/bin/ruff check .
+  Espere achar coisas pequenas (ordem de import, linha longa). Corrija.
+
+PASSO 2 — rodar os testes
+    .venv/bin/pytest -q
+  Nenhum teste foi executado ainda. É PROVÁVEL que alguns falhem na primeira vez.
+  Pontos mais prováveis de falha, em ordem:
+    a) retrieval/store.py — a classe LoadedIndex é um BaseModel com um campo
+       np.ndarray e model_config = {"arbitrary_types_allowed": True} declarado no
+       meio da classe. Se o Pydantic reclamar, mova model_config para o topo da
+       classe ou troque LoadedIndex por um @dataclass. Um dataclass é aceitável.
+    b) ingest/chunking.py — o teste test_long_block_is_split_within_budget usa
+       tolerância de 1,5x. Se estourar muito, revise o laço de split_long_text.
+    c) ingest/loaders.py — _markdown_blocks usa `yield from flush()` com uma
+       função geradora interna que faz nonlocal. Se algum bloco vier vazio ou
+       duplicado, é aqui.
+    d) test_lexical test_bm25_ranks_the_exact_identifier_first — depende do
+       tokenizador manter "31.028" inteiro. Se falhar, imprima tokenize("CA 31.028").
+  Corrija até `pytest -q` passar inteiro. NÃO afrouxe um teste para fazê-lo passar
+  sem antes entender por que ele falhou.
+
+PASSO 3 — gerar os PDFs do corpus
+    .venv/bin/python scripts/make_pdfs.py --company aurora
+  Deve criar 4 PDFs em data/aurora/docs/pdf/.
+
+PASSO 4 — construir o índice (primeira vez baixa ~470 MB de pesos do e5)
+    .venv/bin/python -m rag_ic.ingest.build_index --company aurora
+  Verifique na saída:
+    - 32 documentos carregados
+    - contagem de chunks (esperado na casa de 400–900)
+    - dimensão 384
+    - AVISO se algum chunk passar de 512 tokens. Se aparecer, reduza
+      RAG_MAX_CHUNK_TOKENS ou aumente header_reserve_tokens em ChunkingConfig.
+
+PASSO 5 — sanidade da recuperação, ANTES de gastar qualquer token
+    .venv/bin/python -c "
+from rag_ic.config import get_settings
+from rag_ic.pipeline import build_embedder
+from rag_ic.retrieval.retriever import HybridRetriever
+s = get_settings(); r = HybridRetriever.from_settings(s, build_embedder(s))
+for q in ['Qual o CA da luva de vaqueta?', 'CA 31.028', 'troca do protetor auricular']:
+    print('###', q)
+    for sc in r.search(q, 3, 'hybrid'):
+        print(f'  {sc.fused_score:.4f} {sc.chunk.doc_id} | {sc.chunk.section_label}')
+"
+  Se os documentos certos não aparecerem, o problema é recuperação — conserte
+  antes de olhar geração.
+
+PASSO 6 — a ablação (RESULTADO CENTRAL DA IC, e é de graça)
+    .venv/bin/python -m rag_ic.evaluation.run_eval
+  Imprime a tabela denso × BM25 × híbrido e grava reports/retrieval_aurora.csv.
+  EXPECTATIVA: híbrido >= denso em MRR, e BM25 deve ganhar do denso em perguntas
+  com identificador (Q03, Q51, Q39, Q48). Se o híbrido perder do denso, verifique
+  o rrf_k e se o BM25 está retornando algo.
+  A lista de "falhas" ao final aponta perguntas sem nenhum trecho relevante em
+  top-10 — cada uma dessas é material para o artigo (por que falhou?).
+
+PASSO 7 — configurar a chave e testar a geração
+    cp .env.example .env
+    # editar .env e preencher RAG_GEMINI_API_KEY
+    .venv/bin/uvicorn rag_ic.api.main:app --reload
+    # abrir http://localhost:8000
+  Teste manualmente com as perguntas de exemplo da tela. Confira:
+    - a resposta cita [n]
+    - clicar em [n] abre o inspector e destaca o trecho
+    - o inspector mostra scores denso, BM25 e RRF
+    - uma pergunta de U01..U10 produz recusa visível
+
+PASSO 8 — avaliação de recusa (gasta tokens, poucos centavos)
+    .venv/bin/python -m rag_ic.evaluation.run_eval --with-llm
+  Gera reports/answers_aurora.csv. Reporte:
+    - recusa correta nas 10 sem resposta (quanto maior melhor)
+    - recusa indevida nas 50 respondíveis (quanto menor melhor)
+    - citações inválidas (idealmente zero)
+
+PASSO 9 — inicializar git (ainda não é repositório)
+    git init
+    git add -A
+    git commit -m "feat: PoC de RAG local para documentação de EPI"
+  CONFIRA ANTES DO COMMIT que .env NÃO está sendo versionado.
+
+--------------------------------------------------------------------------------
+7. TRABALHO FUTURO (depois que o passo 9 estiver fechado)
+--------------------------------------------------------------------------------
+
+Em ordem de valor para a IC:
+
+  1. Validar o OllamaProvider. É o que fecha a tese de privacidade.
+       curl -fsSL https://ollama.com/install.sh | sh
+       ollama pull qwen3:4b
+       # no .env: RAG_LLM_PROVIDER=ollama
+     Depois rode run_eval --with-llm com os dois providers e compare recusa,
+     qualidade e latência. Essa comparação é um capítulo do artigo.
+  2. Ablação de chunk size. Rode build_index com RAG_MAX_CHUNK_TOKENS em 200, 400
+     e 600 e refaça run_eval. O gold set aguenta isso sem rerrotulação — foi
+     projetado para isso.
+  3. Métricas segmentadas por formato (markdown × PDF × CSV) para quantificar o
+     ruído de extração de PDF, em vez de só declará-lo.
+  4. Reranker cross-encoder sobre o top-30. Provável maior ganho de qualidade.
+  5. Segunda empresa fictícia, para demonstrar o isolamento ao vivo.
+
+--------------------------------------------------------------------------------
+8. ARMADILHAS CONHECIDAS — LEIA ANTES DE MEXER
+--------------------------------------------------------------------------------
+
+  * Prefixos do e5. Se você indexar sem "passage: " ou consultar sem "query: ",
+    NADA quebra — a qualidade só cai em silêncio. Existe teste para isso
+    (tests/test_embeddings_prefix.py). Não remova.
+  * Limite de 512 tokens do e5. Texto além disso é descartado pelo tokenizer sem
+    erro. O build_index avisa; leve o aviso a sério.
+  * Contrato de ordenação do índice. Linha i do chunks.jsonl tem que ser a linha i
+    da matriz .npz. É verificado no load. Se mudar o formato, mantenha a checagem.
+  * O evento SSE de erro se chama "failure", NÃO "error". EventSource já despacha
+    um evento "error" nativo para falha de transporte; usar o mesmo nome torna os
+    dois indistinguíveis no navegador.
+  * O marcador de recusa é CONTEXTO_INSUFICIENTE, definido UMA vez em
+    models.py e importado pelo prompt, pelo parser e pelos testes. Se mudar o
+    texto, mude só lá.
+  * thinking_level, não thinking_budget (ver seção 3).
+  * gold set rotulado por (doc_id, seção) com casamento por PREFIXO. Seção vazia
+    significa "qualquer lugar do documento" e é o que PDFs e CSVs usam.
+  * PDFs são gerados, não versionados (.gitignore). Rode make_pdfs.py antes de
+    build_index em uma máquina nova, senão o corpus perde 4 documentos e as
+    perguntas Q51–Q54 falham.
+  * data/aurora/pdf_sources/ fica FORA de docs/ de propósito. Se mover para
+    dentro, o mesmo conteúdo é indexado duas vezes (como md e como pdf).
+
+--------------------------------------------------------------------------------
+9. PROMPT PRONTO PARA RETOMAR COM O CLAUDE
+--------------------------------------------------------------------------------
+
+Cole isto em uma sessão nova, com o diretório do projeto aberto:
+
+---8<---
+Estou retomando um projeto. Leia /home/gazerah/Documents/RAG-IC/plan.txt inteiro
+antes de qualquer ação — ele tem o contexto, as decisões já fechadas com o usuário
+e a lista do que falta.
+
+É uma PoC de Iniciação Científica: RAG local para perguntas internas de empresa
+sobre EPI, com Gemini 2.5 Flash atrás de uma interface de provider trocável. O
+código já está escrito; o que falta é executar e validar.
+
+Comece pelo PASSO 0 da seção 6 do plano e siga na ordem. Não reabra as decisões de
+arquitetura da seção 2 — elas foram tomadas depois de uma sessão longa de
+questionamento com o usuário. Se algum teste falhar, entenda a causa antes de
+mudar o teste.
+
+Me reporte ao final: o que passou, o que falhou, e a tabela da ablação
+denso × BM25 × híbrido.
+---8<---
+
+================================================================================
+FIM
+================================================================================
