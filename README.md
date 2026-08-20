@@ -296,11 +296,11 @@ Todas conhecidas e declaradas, não descobertas depois:
    acompanhamento ("e para soldadores?") não funcionam — decisão deliberada, para que as
    métricas do gold set descrevam exatamente o que o sistema faz em produção.
 6. **Sem reranker.** Um cross-encoder seria o próximo ganho de qualidade mais provável.
-7. **Risco de depreciação do modelo.** `gemini-2.5-flash` é configuração, não código. A
-   forma do parâmetro de raciocínio já mudou uma vez durante o desenvolvimento (de
-   `thinking_budget` inteiro para `thinking_level` categórico), e `gemini-2.5-flash` não
-   permite desligar o raciocínio, apenas reduzi-lo — `llm/gemini.py` aplica o campo de
-   forma tolerante a versão de SDK.
+7. **Risco de depreciação do modelo.** `gemini-2.5-flash` é configuração, não código. O
+   parâmetro de raciocínio nem sequer é o mesmo campo entre famílias: o Gemini 3 usa o
+   `thinking_level` categórico e o Gemini 2.5 usa o `thinking_budget` inteiro, recusando
+   o outro com `400 INVALID_ARGUMENT` na hora da requisição. `llm/gemini.py` expõe um
+   único nível semântico e mapeia para o campo que o modelo configurado aceita.
 
 ---
 

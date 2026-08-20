@@ -42,7 +42,7 @@ Decisões já fixadas — todas serão justificadas ao longo do guia:
 | Vector store | matriz NumPy `float32` em `.npz`, cosine similarity exata |
 | Busca léxica | BM25 (`rank_bm25`) com tokenizer que preserva identificadores (`NR-35`, `CA 31.028`, `6.3.1`) |
 | Fusão | Reciprocal Rank Fusion, k=60 |
-| Geração | Gemini 2.5 Flash via `google-genai`, streaming, thinking budget 0 |
+| Geração | Gemini 2.5 Flash via `google-genai`, streaming, raciocínio interno reduzido |
 | Serving | FastAPI + Pydantic + Server-Sent Events; frontend HTML/CSS/JS puro |
 | Avaliação | gold set de 50 perguntas respondíveis + 10 não respondíveis; Recall@k, MRR, refusal accuracy |
 | Tenancy | `data/<empresa>/` e `index/<empresa>/` |
@@ -733,11 +733,15 @@ O ponto honesto: **mesmo com temperatura 0 não há determinismo garantido** em 
 
 Modelos da geração Gemini 2.5 podem gerar tokens de raciocínio interno antes da resposta visível. Esses tokens não aparecem ao usuário, **mas são cobrados como saída** e adicionam latência antes do primeiro token visível — o que é ruim justamente numa interface de streaming, em que a percepção de velocidade depende do *time to first token*.
 
-A configuração do projeto é `gemini_thinking_budget: int = 0`, isto é, sem raciocínio interno. A justificativa técnica é sólida: nossa tarefa é **compreensão de leitura extrativa sobre ~2.000 tokens de contexto**, não resolução de problema em múltiplas etapas. É exatamente o tipo de tarefa em que thinking adiciona custo e latência sem ganho mensurável. Se o trabalho evoluísse para perguntas que exigem combinar três documentos e comparar prazos, valeria medir o efeito de habilitá-lo — e essa medição seria, ela própria, um resultado interessante.
+A justificativa para manter o raciocínio no mínimo é sólida: nossa tarefa é **compreensão de leitura extrativa sobre ~2.000 tokens de contexto**, não resolução de problema em múltiplas etapas. É exatamente o tipo de tarefa em que thinking adiciona custo e latência sem ganho mensurável. Se o trabalho evoluísse para perguntas que exigem combinar três documentos e comparar prazos, valeria medir o efeito de habilitá-lo — e essa medição seria, ela própria, um resultado interessante.
 
-**Aviso importante, verifique antes de escrever no relatório:** a documentação oficial atual do Gemini API descreve a configuração de raciocínio por um parâmetro **`thinking_level`** com valores qualitativos (`low`, `medium`, `high`), e não por um orçamento numérico `thinking_budget`; ela indica ainda que, para modelos Flash da linha 2.5, **não há opção de desligar completamente**. Ou seja, "thinking budget = 0" reflete uma forma anterior da API.
+**O campo não é o mesmo entre famílias de modelo, e isto foi medido, não lido.** Medido em 20/08/2026 com `google-genai` 1.75.0 contra `gemini-2.5-flash`: `thinking_budget=0` é aceito e zera os tokens de raciocínio (`thoughts_token_count = None`); `thinking_budget=128` gasta 18 tokens; `thinking_level="low"` devolve `400 INVALID_ARGUMENT — Thinking level is not supported for this model`; sem configuração alguma, o padrão do modelo gasta 18 tokens.
 
-Trate isso como achado, não como problema: é a ilustração mais concreta possível do risco de depender de uma API em evolução (seção 11), e é exatamente o que a **interface de provider** existe para conter. Consulte `https://ai.google.dev/gemini-api/docs/thinking`, use o que estiver documentado na versão do `google-genai` instalada, e registre no relatório a data da consulta e a versão do SDK.
+Ou seja: `thinking_level` é o campo do **Gemini 3**; o **Gemini 2.5** usa `thinking_budget`, e nele o zero desliga o raciocínio de fato. Uma versão anterior deste guia afirmava o contrário, com base apenas na leitura da documentação — que descreve a forma nova sem deixar claro que a antiga continua valendo para a geração anterior.
+
+Duas lições que valem mais para o relatório do que a configuração em si. A primeira é metodológica: **documentação não é evidência de comportamento**; uma sonda de quatro requisições resolveu em segundos uma dúvida que a leitura tinha deixado errada. A segunda é de projeto: o erro é um `400` do servidor, não um erro de tipo, então `try/except` em volta da construção do objeto de configuração não pega nada — o código só falha quando há uma chave válida, isto é, no primeiro uso real. Nesta base o mapeamento entre nível semântico e campo concreto vive em `llm/gemini.py` e está fixado por testes que não tocam a rede (`tests/test_gemini_thinking.py`).
+
+Registre no relatório a data da consulta e a versão do SDK; a página de referência é `https://ai.google.dev/gemini-api/docs/thinking`.
 
 Esboço de chamada com streaming (adapte a configuração ao que a doc atual indicar):
 
@@ -781,7 +785,7 @@ Todo o resto do sistema — retrieval, fusão, prompt, parser de citações, det
 > - Por que `[n]` é verificável por máquina e "conforme a Política de EPI" não é — e o que a verificação de forma **não** garante.
 > - Três vantagens concretas de um marcador literal de recusa sobre uma frase natural, e o modo de falha dele.
 > - Por que temperatura baixa em RAG, e por que mesmo assim não se deve prometer determinismo.
-> - O que é thinking budget, por que 0 faz sentido para esta tarefa, e por que essa configuração é um exemplo de risco de API.
+> - O que é thinking budget, por que o mínimo faz sentido para esta tarefa, por que `thinking_level` e `thinking_budget` não são intercambiáveis entre famílias de modelo, e por que só uma medição — não a documentação — resolveu a questão.
 
 ---
 
