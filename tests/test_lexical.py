@@ -74,3 +74,43 @@ def test_bm25_on_empty_corpus_returns_nothing():
 def test_bm25_with_only_stopwords_returns_nothing():
     index = BM25Index([make_chunk("a", "conteúdo qualquer")])
     assert index.search("a de o", top_k=5) == []
+
+
+def test_matches_are_returned_when_every_chunk_contains_the_query_term():
+    # BM25Okapi's IDF is negative once a term appears in more than half the
+    # documents, so every score here is negative. Filtering on `score > 0.0`
+    # returned [] for a query that matches the whole corpus — and since
+    # indexable_text prefixes the document header to every chunk, any query
+    # naming the document hits this.
+    index = BM25Index([make_chunk(f"c{i}", "Política de EPI. Fornecimento de luvas.") for i in range(10)])
+    hits = index.search("Política de EPI", top_k=5)
+
+    assert hits, "BM25 dropped every chunk even though all of them match"
+    assert len(hits) == 5
+
+
+def test_non_matching_chunks_are_still_excluded():
+    index = BM25Index(
+        [
+            make_chunk("a", "Política de EPI. Fornecimento de luvas."),
+            make_chunk("b", "Política de EPI. Fornecimento de botas."),
+            make_chunk("c", "Assunto completamente diferente sobre ruído."),
+        ]
+    )
+    hits = index.search("luvas", top_k=5)
+
+    assert [i for i, _ in hits] == [0], hits
+
+
+def test_results_are_ordered_by_score_descending():
+    index = BM25Index(
+        [
+            make_chunk("a", "luva luva luva luva capacete"),
+            make_chunk("b", "luva capacete capacete capacete"),
+            make_chunk("c", "totalmente outro assunto"),
+        ]
+    )
+    hits = index.search("luva", top_k=3)
+
+    scores = [score for _, score in hits]
+    assert scores == sorted(scores, reverse=True), scores

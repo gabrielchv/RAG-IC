@@ -76,12 +76,30 @@ class BM25Index:
         self._bm25 = BM25Okapi(self._corpus_tokens) if self._corpus_tokens else None
 
     def search(self, query: str, top_k: int) -> list[tuple[int, float]]:
-        """Return ``(chunk_index, score)`` for the ``top_k`` best matches, score-sorted."""
+        """Return ``(chunk_index, score)`` for the ``top_k`` best matches, score-sorted.
+
+        Membership is decided by term overlap, not by the sign of the score.
+
+        ``BM25Okapi``'s IDF is ``log(N - df + 0.5) - log(df + 0.5)``, which turns
+        negative once a term appears in more than half the documents. Filtering
+        ``score > 0.0`` therefore discarded genuine matches, and in the worst
+        case discarded all of them: a query whose terms appear in *every* chunk
+        scored every chunk negative and returned ``[]``. That is not hypothetical
+        here — ``Chunk.indexable_text`` prefixes the document's context header to
+        every chunk, so any query naming the document itself is exactly that case.
+        """
         if self._bm25 is None or top_k <= 0:
             return []
         query_tokens = tokenize(query)
         if not query_tokens:
             return []
+
+        wanted = set(query_tokens)
         scores = self._bm25.get_scores(query_tokens)
-        ranked = sorted(enumerate(scores), key=lambda pair: pair[1], reverse=True)
-        return [(index, float(score)) for index, score in ranked[:top_k] if score > 0.0]
+        matched = [
+            (index, float(score))
+            for index, score in enumerate(scores)
+            if wanted.intersection(self._corpus_tokens[index])
+        ]
+        matched.sort(key=lambda pair: pair[1], reverse=True)
+        return matched[:top_k]
