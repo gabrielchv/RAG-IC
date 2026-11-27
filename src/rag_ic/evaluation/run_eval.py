@@ -50,11 +50,21 @@ def run_retrieval_ablation(
     questions: list[GoldQuestion],
     top_k: int,
 ) -> list[RetrievalReport]:
+    """Score every strategy at every cutoff in `KS`.
+
+    The retrieval depth is `max(top_k, max(KS))`, not `top_k`. Scoring R@10 against
+    a `--top-k 3` retrieval silently caps recall at 0.3 no matter how good the
+    system is: there are only three candidates to find anything in. A cutoff a
+    report prints has to actually have been searched to that depth, or the number
+    is a property of the flag rather than of the retriever (and the report then
+    under-reports the system it is measuring).
+    """
     answerable = [question for question in questions if question.answerable]
+    depth = max(top_k, max(KS))
     reports = []
     for strategy in STRATEGIES:
         results = {
-            question.id: pipeline.retrieve(question.question, top_k=top_k, strategy=strategy)
+            question.id: pipeline.retrieve(question.question, top_k=depth, strategy=strategy)
             for question in answerable
         }
         reports.append(evaluate_retrieval(strategy, results, answerable, KS))
@@ -183,7 +193,15 @@ def write_answers_csv(path: Path, rows: list[dict[str, str]]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--company", help="overrides RAG_COMPANY")
-    parser.add_argument("--top-k", type=int, default=max(KS))
+    parser.add_argument(
+        "--top-k",
+        type=int,
+        default=max(KS),
+        help=(
+            "retrieval depth; raised to max(KS) when smaller, so every reported "
+            "recall@k was actually searched to depth k"
+        ),
+    )
     parser.add_argument(
         "--with-llm",
         action="store_true",
