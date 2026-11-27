@@ -91,7 +91,14 @@ class ScoredChunk(BaseModel):
     bm25_score: float | None = None
     dense_rank: int | None = None
     bm25_rank: int | None = None
-    fused_score: float = 0.0
+    fused_score: float | None = None
+    """RRF score, present only when the ranking actually came from a fusion.
+
+    This was `float = 0.0` and the retriever filled it with whatever ordering
+    score it had — a cosine similarity under `dense`, a BM25 score under `bm25`.
+    Both are on incomparable scales, so a field named `fused_score` reported a
+    number that meant three different things depending on a column elsewhere in
+    the row. `None` says "no fusion happened", which is the truth."""
 
     @property
     def chunk_id(self) -> str:

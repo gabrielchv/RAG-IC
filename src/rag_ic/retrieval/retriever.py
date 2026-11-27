@@ -80,6 +80,11 @@ class HybridRetriever:
         dense_ranks = ranks_by_index([index for index, _ in dense_hits])
         bm25_ranks = ranks_by_index([index for index, _ in bm25_hits])
 
+        # Only a fusion produces a fused score. Under `dense` or `bm25` the
+        # ordering score is that retriever's own, on its own scale, and reporting
+        # it as a fused score made one field mean three different things.
+        fused_scores: dict[int, float] = {}
+
         if strategy == "dense":
             ordered: list[tuple[int, float]] = list(dense_hits)
         elif strategy == "bm25":
@@ -93,6 +98,7 @@ class HybridRetriever:
                 k=self._rrf_k,
             )
             ordered = sorted(fused.items(), key=lambda pair: pair[1], reverse=True)
+            fused_scores = fused
 
         results = [
             ScoredChunk(
@@ -101,7 +107,7 @@ class HybridRetriever:
                 bm25_score=bm25_scores.get(index),
                 dense_rank=dense_ranks.get(index),
                 bm25_rank=bm25_ranks.get(index),
-                fused_score=float(score),
+                fused_score=fused_scores.get(index),
             )
             for index, score in ordered[:top_k]
         ]
