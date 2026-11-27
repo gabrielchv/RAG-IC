@@ -12,6 +12,7 @@ data structure. It is asserted on load rather than assumed.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
@@ -39,6 +40,15 @@ class IndexManifest(BaseModel):
     document_count: int
     max_chunk_tokens: int
     chunk_overlap_ratio: float
+    index_chunks_sha256: str = ""
+    """Digest of the chunk file, so a half-updated index is detectable.
+
+    `load_index` already checks that the chunk count matches the vector rows, but
+    that only catches a truncated write. A re-ingest that changes chunk *text*
+    while producing the same *count* — a parser fix, a reordering, a changed
+    heading — leaves the two files agreeing on length and disagreeing on content,
+    and retrieval then pairs every chunk with the wrong vector without saying
+    anything. The digest makes the pairing verifiable."""
     built_at: str
 
 
@@ -74,6 +84,8 @@ def save_index(
 
     np.savez_compressed(directory / VECTORS_FILE, vectors=vectors.astype(np.float32))
 
+    digest = hashlib.sha256((directory / CHUNKS_FILE).read_bytes()).hexdigest()
+
     manifest = IndexManifest(
         company=company,
         embedding_model=embedding_model,
@@ -82,6 +94,7 @@ def save_index(
         document_count=len({chunk.doc_id for chunk in chunks}),
         max_chunk_tokens=max_chunk_tokens,
         chunk_overlap_ratio=chunk_overlap_ratio,
+        index_chunks_sha256=digest,
         built_at=datetime.now(UTC).isoformat(timespec="seconds"),
     )
     (directory / MANIFEST_FILE).write_text(
@@ -114,5 +127,17 @@ def load_index(directory: Path) -> LoadedIndex:
 
     if len(chunks) != vectors.shape[0]:
         raise ValueError("corrupt index: chunk count does not match vector rows")
+
+    # Same count is not the same content. A re-ingest that changes the text while
+    # preserving the number of chunks would otherwise pair every chunk with the
+    # wrong vector and retrieve confident nonsense. Older indexes carry no digest,
+    # so this only enforces where one was recorded.
+    if manifest.index_chunks_sha256:
+        actual = hashlib.sha256((directory / CHUNKS_FILE).read_bytes()).hexdigest()
+        if actual != manifest.index_chunks_sha256:
+            raise ValueError(
+                "corrupt index: chunk file does not match the manifest digest; "
+                "rebuild it with `python -m rag_ic.ingest.build_index`"
+            )
 
     return LoadedIndex(chunks=chunks, vectors=vectors, manifest=manifest)
