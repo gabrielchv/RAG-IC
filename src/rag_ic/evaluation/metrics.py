@@ -20,12 +20,19 @@ def matches_reference(chunk: Chunk, reference: GoldReference) -> bool:
 
     An empty ``section`` means "anywhere in this document" — used for PDFs and CSVs,
     whose chunks carry pages and rows rather than headings.
+
+    A non-empty ``section`` is matched on a component boundary, not as a bare
+    prefix. ``"40. Disposições finais".startswith("4")`` is true, so a gold label
+    of ``"4"`` used to accept a chunk from section 40 and credit a section the
+    question was never about. Sections are joined with ``" > "``, so a match is
+    either the whole path or the path followed by that separator.
     """
     if chunk.doc_id != reference.doc_id:
         return False
     if not reference.section:
         return True
-    return " > ".join(chunk.section_path).startswith(reference.section)
+    path = " > ".join(chunk.section_path)
+    return path == reference.section or path.startswith(reference.section + " > ")
 
 
 def is_relevant(chunk: Chunk, references: Sequence[GoldReference]) -> bool:

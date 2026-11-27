@@ -51,6 +51,27 @@ def test_reference_section_is_a_prefix_match():
     assert not matches_reference(chunk("d", ("2. Calçado",)), reference)
 
 
+def test_section_prefix_must_end_on_a_component_boundary():
+    """`"4"` must not match `"40. Disposições finais"`.
+
+    Sections are joined with " > ", and a bare `startswith` accepted any string
+    that merely began with the label: a gold label of "4" credited a chunk from
+    section 40, inflating recall for a region the question never named.
+    """
+    reference = GoldReference(doc_id="d", section="4")
+
+    assert not matches_reference(chunk("d", ("40. Disposições finais",)), reference)
+    assert not matches_reference(chunk("d", ("41. Penalidades",)), reference)
+    assert matches_reference(chunk("d", ("4",)), reference)
+    assert matches_reference(chunk("d", ("4", "4.1 Multa")), reference)
+
+
+def test_a_deeper_section_does_not_match_a_shallower_label():
+    reference = GoldReference(doc_id="d", section="4.1 Multa")
+    assert not matches_reference(chunk("d", ("4",)), reference)
+    assert matches_reference(chunk("d", ("4.1 Multa", "4.1.1 Valor")), reference)
+
+
 def test_wrong_document_never_matches():
     assert not matches_reference(chunk("outro"), GoldReference(doc_id="d"))
 
